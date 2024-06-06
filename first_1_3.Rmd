@@ -1,0 +1,433 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+install.packages("geoR")
+install.packages("sp")
+install.packages("sf")
+install.packages("nlme")
+install.packages("ggplot2")
+install.packages("lmtest")
+install.packages("nlme")
+```
+
+
+
+
+```{r}
+library(geoR)
+library(sp)
+library(sf)
+library(lmtest)  # for linear model diagnostics
+library(nlme) 
+data(parana)
+
+```
+1. Consider the Parana dataset from the geoR library (data(parana), help(parana)) and 
+Identify the region of interest, design, response variable and covariates, if any. 
+Plot what the map would look like
+
+```{r}
+help(parana)  # to get more information about the dataset
+str(parana)   # to see the structure of the dataset
+
+```
+summary shows the descriptive statistics for this data
+```{r}
+summary(parana) 
+```
+Expolatory Data Analysis:
+```{r}
+
+plot(parana)
+```
+
+```{r}
+# You must replace 'variable_of_interest' with the actual variable name from `parana$data`
+plot(parana$coords[,1], parana$coords[,2], col=rainbow(length(parana$data))[rank(parana$data)], pch=20, main="Spatial Distribution of Data Values", xlab="East", ylab="North")
+legend("topright", legend=quantile(parana$data, probs=seq(0, 1, 0.25)), col=rainbow(5), pch=20)
+```
+
+```{r}
+plot(parana$coords, xlab = "Easting", ylab = "Northing",
+     main = "Log-silica percentages in Paraná basin",
+     pch = 20, col = rgb(0, 0, 1, 0.5))
+points(parana$coords, col = ifelse(parana$data > median(parana$data), "red", "blue"), pch = 20)
+legend("topright", legend = c("Above median", "Below median"), 
+       col = c("red", "blue"), pch = 20, title = "Log-silica %")
+```
+
+
+
+```{r}
+# Access coordinates directly
+coords <- parana$coords
+# Check the first few rows to confirm
+head(coords)
+
+
+```
+
+```{r}
+parana$coords[,1]
+```
+
+```{r}
+# Assuming 'parana$east' and 'parana$north' are vectors containing the coordinates
+coords_df <- data.frame(east = parana$coords[,1], north = parana$coords[,2])
+
+# Print the names of the data frame to confirm
+sf_points <- st_as_sf(coords_df, coords = c("east", "north"), crs = 4326)
+
+# Check the resulting sf object
+print(sf_points)
+#print(names(coords_df))
+
+```
+
+
+
+
+```{r}
+data_values <- parana$data
+
+# Create a SpatialPointsDataFrame
+spdf <- SpatialPointsDataFrame(coords = as.matrix(coords), data = data.frame(data = data_values))
+plot(spdf)
+title("DATA POINTS")
+```
+
+```{r}
+oldpar <- par(no.readonly = TRUE)
+
+# Set the layout to have 2 plots in one row
+layout(matrix(c(1, 2), 1, 2))
+```
+
+```{r}
+# Plot with axes (adjust according to your data)
+plot(parana$coords[,1], parana$coords[,2], xlab="East", ylab="North", main="With Axes", pch=19)
+box()  # Add a box around the plot
+
+# Plot without axes
+plot(parana$coords[,1], parana$coords[,2], xlab="", ylab="", xaxt='n', yaxt='n', main="Without Axes", pch=19)
+box()  # Add a box around the plot
+
+```
+
+```{r}
+# Save the current par settings to restore later
+oldpar <- par(no.readonly = TRUE)
+
+# Set the layout to have 2 plots in one row
+layout(matrix(c(1, 2), 1, 2))
+
+# First Plot: With Axes
+plot(parana$coords[,1], parana$coords[,2], xlab="East", ylab="North", main="With Axes", pch=19, col="blue")
+# Adding axes directly after plotting
+axis(1, at = c(min(parana$coords[,1]) + 0:2 * 2000), cex.axis = 0.7)
+axis(2, at = c(min(parana$coords[,2]) + 0:3 * 4000), cex.axis = 0.7)
+box()  # Add a box around the plot
+
+# Second Plot: Without Axes
+plot(parana$coords[,1], parana$coords[,2], xlab="", ylab="", xaxt='n', yaxt='n', main="Without Axes", pch=19, col="red")
+# Since axes are turned off with xaxt='n' and yaxt='n', no need to add them here
+box()  # Add a box around the plot
+
+# Restore the previous par settings to keep your R environment clean
+par(oldpar)
+
+
+```
+
+```{r}
+borders_matrix <- as.matrix(parana$borders)
+
+# Create Spatial Polygons
+polygons <- SpatialPolygons(list(Polygons(list(Polygon(borders_matrix)), "ParanaBorder")))
+
+# Check the created polygon
+plot(polygons, main="Polygon of Parana Borders")
+```
+
+```{r}
+# Plot the polygon first
+plot(polygons, main="Parana Data with Borders", col="lightblue")
+
+# Add points on top
+points(parana$coords[,1], parana$coords[,2], pch=19, col="red")
+
+```
+2. Consider elevation data(elevation) as a simple linear regression problem, with 
+elevation as the response and north-south coordinate as the explanatory variable. Fit 
+the model and examine the residuals of the model.
+  Do you consider that a more sophisticated model is necessary for the analysis 
+  of spatial variation?
+  Do you consider that a more sophisticated model is necessary for the analysis 
+  of spatial variation, justify your answer.
+
+```{r}
+# Since 'parana$data' is a vector and does not contain multiple variables, we handle it directly
+# Checking if it's named vector
+if (!is.null(names(parana$data))) {
+  # If the vector has names, print them
+  print(names(parana$data))
+} else {
+  # If the vector does not have names, inform about its single variable nature
+  print("The dataset contains one variable without explicit names.")
+}
+
+# Printing the length of the data vector
+print(length(parana$data))
+
+```
+
+```{r}
+plot(parana$coords, xlab = "Longitude", ylab = "Latitude", main = "Spatial Plot of Sampling Locations")
+
+```
+
+```{r}
+names(parana)  # This will show all the top-level elements in the list
+
+
+```
+
+```{r}
+str(parana$data)  # This will show the structure and names of the variables inside 'data'
+
+```
+
+```{r}
+plot(parana$coords[, "east"], parana$coords[, "north"], xlab = "East (m)", ylab = "North (m)", main = "Geographical Plot of Sampling Points", pch = 19, col = 'blue')
+
+```
+Creating the Data frame from the Parana Data
+```{r}
+df <- data.frame(data=parana$data, east=parana$coords[,1], north=parana$coords[,2])
+```
+
+```{r}
+variable_names <- names(df)
+
+# Printing the names of the variables
+print(variable_names)
+```
+```{r}
+num_variables <- length(variable_names)
+
+# Printing the number of variables
+print(num_variables)
+```
+
+```{r}
+parana$data
+
+```
+Applying the simple linear regression
+
+```{r}
+linear_model <- lm(data ~ north, data = df)
+summary(linear_model)
+
+```
+```{r}
+plot(parana$coords[,2], residuals(linear_model),
+     xlab = "North-South Coordinate", ylab = "Residuals",
+     main = "Residuals of Linear Model",
+     pch = 20, col = rgb(0.2, 0.5, 0.9, 0.7))
+abline(h = 0, col = "red")
+
+# Checking for patterns in residuals
+acf(residuals(linear_model))
+
+```
+
+3. Consider the following models for a data set, whose response Yi = 1, 2, ..., n 
+associated with a sequence of xi positions along a spatial axis of one x-dimension.
+
+
+```{r}
+# Assuming easting is used as the predictor (x_i)
+parana_df <- data.frame(response = parana$data, easting = parana$coords[, "east"])
+
+```
+
+```{r}
+# Fit linear model
+model_a <- lm(response ~ easting, data = parana_df)
+summary(model_a)
+
+```
+
+```{r}
+plot(residuals(model_a), type = "l", main = "Residuals of Model a")
+```
+
+```{r}
+fitted_values_a <- fitted(model_a)
+plot(parana_df$easting, parana_df$response, main = "Observed vs. Fitted Values",
+     xlab = "Easting", ylab = "Response", col = "blue", pch = 20)
+points(parana_df$easting, fitted_values_a, col = "red", pch = 4)
+legend("topright", legend = c("Observed", "Fitted"), col = c("blue", "red"), pch = c(20, 4))
+```
+
+```{r}
+# Random intercept and random slope model
+# Assuming you have already added a 'group' column as an identifier for each observation:
+parana_df$group <- seq_along(parana_df$response)
+
+# Fit a model with random intercepts only, for each 'group'
+model_b <- lme(response ~ easting, random = ~ 1 | group, data = parana_df, method = "REML")
+summary(model_b)
+
+
+```
+
+```{r}
+# Categorizing 'easting' into quantiles for grouping
+parana_df$group <- cut(parana_df$easting, breaks = quantile(parana_df$easting, probs = seq(0, 1, by = 0.25)), include.lowest = TRUE)
+
+# Re-fit Model b with these new groups
+model_b <- lme(response ~ easting, random = ~ 1 + easting | group, data = parana_df, method = "REML")
+summary(model_b)
+
+```
+
+```{r}
+# Plotting the fitted values against the actual data
+fitted_values_b <- fitted(model_b)
+plot(parana_df$easting, parana_df$response, main = "Observed vs. Fitted Values",
+     xlab = "Easting", ylab = "Response", col = "blue", pch = 20)
+points(parana_df$easting, fitted_values_b, col = "red", pch = 4)
+legend("topright", legend = c("Observed", "Fitted"), col = c("blue", "red"), pch = c(20, 4))
+
+```
+
+```{r}
+# Saving current par settings
+oldpar <- par(no.readonly = TRUE)
+
+# Setting layout for 2 plots side by side
+layout(matrix(c(1, 2), 1, 2))
+
+borders_sp <- SpatialPolygons(list(Polygons(list(Polygon(as.matrix(parana$borders))), "parana")))
+
+```
+
+
+
+```{r}
+# Restore previous graphical parameters
+par(oldpar)
+
+```
+
+```{r}
+oldpar <- par(no.readonly = TRUE)
+
+# Setting layout for 2 plots side by side
+layout(matrix(c(1, 2), 1, 2))
+```
+
+```{r}
+
+plot(borders_sp, col = "lightyellow", axes = TRUE, main = "With Axes and Data")
+box()
+# Add observed data points
+points(parana_df$easting, parana_df$response, col = "blue", pch = 20)
+# Add fitted model points
+points(parana_df$easting, fitted_values_b, col = "red", pch = 4)
+# Add a legend
+legend("topright", legend = c("Observed", "Fitted"), col = c("blue", "red"), pch = c(20, 4))
+
+# Plot 2: Borders without axes
+plot(borders_sp, col = "lightyellow", axes = FALSE, main = "Without Axes")
+axis(1, at = seq(min(parana$borders[, 1]), max(parana$borders[, 1]), by = 2000), cex.axis = 0.7)
+axis(2, at = seq(min(parana$borders[, 2]), max(parana$borders[, 2]), by = 4000), cex.axis = 0.7)
+box()
+
+```
+
+```{r}
+plot(borders_sp, col = "lightyellow", axes = TRUE, main = "With Axes and Data")
+box()
+# Add observed data points
+points(parana_df$easting, parana_df$response, col = "blue", pch = 20)
+# Add fitted model points
+points(parana_df$easting, fitted_values_a, col = "red", pch = 4)
+# Add a legend
+legend("topright", legend = c("Observed", "Fitted"), col = c("blue", "red"), pch = c(20, 4))
+
+# Plot 2: Borders without axes
+plot(borders_sp, col = "lightyellow", axes = FALSE, main = "Without Axes")
+axis(1, at = seq(min(parana$borders[, 1]), max(parana$borders[, 1]), by = 2000), cex.axis = 0.7)
+axis(2, at = seq(min(parana$borders[, 2]), max(parana$borders[, 2]), by = 4000), cex.axis = 0.7)
+box()
+```
+```{r}
+ library(sp)
+ data(meuse)
+ coordinates(meuse) <- c("x", "y")
+ plot(meuse, col='red')
+ title("points")
+```
+
+```{r}
+ cc <- coordinates(meuse)
+ m.sl <- SpatialLines(list(Lines(list(Line(cc)), "line1")))
+ plot(m.sl)
+ title("lines")
+
+
+```
+
+```{r}
+data(meuse.riv)
+meuse.lst <- list(Polygons(list(Polygon(meuse.riv)), "meuse.riv"))
+meuse.pol <- SpatialPolygons(meuse.lst)
+plot(meuse.pol, col = "grey")
+title("polygons")
+```
+
+
+```{r}
+
+data(meuse.grid)
+coordinates(meuse.grid) <- c("x", "y")
+meuse.grid <- as(meuse.grid, "SpatialPixels")
+image(meuse.grid, col = "grey")
+title("grid")
+
+```
+```{r}
+
+image(meuse.grid, col = "lightyellow")
+plot(meuse.pol, col = "lightblue", add = TRUE)
+plot(meuse, add = TRUE, col='red', pch=20, cex=1)
+```
+```{r}
+
+layout(matrix(c(1, 2), 1, 2))
+plot(meuse.pol, axes = TRUE)
+plot(meuse.pol, axes = FALSE)
+axis(1, at = c(178000 + 0:2 * 2000), cex.axis = 0.7)
+axis(2, at = c(326000 + 0:3 * 4000), cex.axis = 0.7)
+box()
+
+```
+
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
